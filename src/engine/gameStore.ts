@@ -49,6 +49,15 @@ export interface FeedbackToast {
   kind: 'act' | 'info' | 'snooze'
 }
 
+export interface FloatingSpark {
+  id: string
+  target: 'kpi' | 'task' | 'calendar' | 'fidelity'
+  taskId?: string
+  text: string
+  tone: 'kpi' | 'sample' | 'calibrated' | 'auto'
+  createdAtReal: number
+}
+
 export interface GameStats {
   manualCompletions: number
   draftsApproved: number
@@ -88,6 +97,8 @@ export interface GameState {
   autonomousLogs: AutonomousLogEntry[]
   /** Timestamp (simTimeSec) of last sweep pulse per task for calendar animations */
   lastBlockPulse: Record<string, number>
+  /** Transient floating visual sparks for tactile incremental feedback */
+  sparks: FloatingSpark[]
   /** Hours already triggered on the current day sweep */
   triggeredTasksThisDay: Record<string, boolean>
   uiFlags: UiFlags
@@ -153,6 +164,7 @@ function createInitialState(): GameState {
     ],
     autonomousLogs: [],
     lastBlockPulse: {},
+    sparks: [],
     triggeredTasksThisDay: {},
     uiFlags: {
       pingsHidden: false,
@@ -214,6 +226,7 @@ function loadSavedState(): GameState {
       uiFlags: { ...base.uiFlags, ...(parsed.uiFlags ?? {}) },
       stats: { ...base.stats, ...(parsed.stats ?? {}) },
       manualRunning: {},
+      sparks: [],
       toast: null,
     }
     return merged
@@ -273,6 +286,20 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     let nextPingAtSec = state.nextPingAtSec
     let nextStats = state.stats
     let statsMutated = spareDelta > 0
+    const nowReal = Date.now()
+    let nextSparks = state.sparks.filter((sp) => nowReal - sp.createdAtReal < 1150)
+
+    const pushSpark = (
+      target: FloatingSpark['target'],
+      text: string,
+      tone: FloatingSpark['tone'],
+      taskId?: string,
+    ) => {
+      nextSparks = [
+        ...nextSparks.slice(-7),
+        { id: nextId('spk'), target, taskId, text, tone, createdAtReal: nowReal },
+      ]
+    }
 
     const ensureStatsCopy = () => {
       if (!statsMutated || nextStats === state.stats) {
@@ -306,11 +333,25 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
           const payout = getTaskKpiReward(state, task, false)
           nextKpis += payout
           const currentSamples = nextSamples[taskId] ?? 0
-          if (currentSamples < task.samplesRequired) {
+          const addedSample = currentSamples < task.samplesRequired
+          const newCount = addedSample ? currentSamples + 1 : currentSamples
+          if (addedSample) {
             nextSamples = {
               ...nextSamples,
-              [taskId]: currentSamples + 1,
+              [taskId]: newCount,
             }
+          }
+          if (addedSample && newCount >= task.samplesRequired) {
+            pushSpark('task', `CALIBRATED · +${payout}`, 'calibrated', taskId)
+          } else if (addedSample) {
+            pushSpark(
+              'task',
+              `+${payout} · Sample ${newCount}/${task.samplesRequired}`,
+              'sample',
+              taskId,
+            )
+          } else {
+            pushSpark('task', `+${payout}`, 'kpi', taskId)
           }
           ensureStatsCopy()
           nextStats.manualCompletions += 1
@@ -358,6 +399,9 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
           ensureStatsCopy()
           nextStats.autoApprovalsFired += 1
           nextStats.totalKpisEarned += reward
+          if (!state.uiFlags.metricsHidden) {
+            pushSpark('calendar', `+${reward}`, 'auto', task.id)
+          }
           const logEntry: AutonomousLogEntry = {
             id: nextId('log'),
             timeLabel: formatClockHour(triggerHour),
@@ -418,9 +462,8 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
 
     // 4. Autosave periodically every ~4 seconds real time
     let nextLastSaved = state.lastSavedAt
-    const nowMs = Date.now()
-    if (nowMs - state.lastSavedAt > 4000) {
-      nextLastSaved = nowMs
+    if (nowReal - state.lastSavedAt > 4000) {
+      nextLastSaved = nowReal
       try {
         const snapshot = {
           ...state,
@@ -436,7 +479,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
           triggeredTasksThisDay: triggered,
           stats: nextStats,
           nextPingAtSec,
-          lastSavedAt: nowMs,
+          lastSavedAt: nowReal,
         }
         window.localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(snapshot))
       } catch {
@@ -456,6 +499,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       activePings: nextPings,
       autonomousLogs: nextLogs,
       lastBlockPulse: nextPulses,
+      sparks: nextSparks,
       triggeredTasksThisDay: triggered,
       stats: nextStats,
       nextPingAtSec,
@@ -622,9 +666,20 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     const target = state.pendingDrafts.find((d) => d.id === draftId)
     if (!target) return
     playApprove(state.act)
+    const nowReal = Date.now()
     set({
       pendingDrafts: state.pendingDrafts.filter((d) => d.id !== draftId),
       kpis: state.kpis + target.kpiReward,
+      sparks: [
+        ...state.sparks.slice(-7),
+        {
+          id: nextId('spk'),
+          target: 'kpi',
+          text: `+${target.kpiReward}`,
+          tone: 'auto',
+          createdAtReal: nowReal,
+        },
+      ],
       stats: {
         ...state.stats,
         draftsApproved: state.stats.draftsApproved + 1,
@@ -641,9 +696,20 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       total += d.kpiReward
     }
     playApprove(state.act)
+    const nowReal = Date.now()
     set({
       pendingDrafts: [],
       kpis: state.kpis + total,
+      sparks: [
+        ...state.sparks.slice(-7),
+        {
+          id: nextId('spk'),
+          target: 'kpi',
+          text: `+${total}`,
+          tone: 'auto',
+          createdAtReal: nowReal,
+        },
+      ],
       stats: {
         ...state.stats,
         draftsApproved: state.stats.draftsApproved + state.pendingDrafts.length,
@@ -744,6 +810,21 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       playApprove(nextAct)
     }
 
+    const nowReal = Date.now()
+    const nextSparks =
+      !nextUiFlags.metricsHidden && proposal.fidelityBonus > 0
+        ? [
+            ...state.sparks.slice(-7),
+            {
+              id: nextId('spk'),
+              target: 'fidelity' as const,
+              text: `+${proposal.fidelityBonus}%`,
+              tone: 'calibrated' as const,
+              createdAtReal: nowReal,
+            },
+          ]
+        : state.sparks
+
     set({
       approvedProposals: nextApproved,
       calendarMode: nextCalendarMode,
@@ -752,6 +833,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       activePings: nextPings,
       pendingDrafts: nextDrafts,
       kpis: nextKpis,
+      sparks: nextSparks,
       humanRemoved: nextHumanRemoved,
       act: nextAct,
       stats: nextStats,

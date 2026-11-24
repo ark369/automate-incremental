@@ -23,33 +23,56 @@ export function MetricsStrip() {
   const sparePerDay = getSpareTimePerDay(state)
   const fidelity = getTwinFidelity(state)
 
+  const kpiSparks = state.sparks.filter((s) => s.target === 'kpi')
+  const fidelitySparks = state.sparks.filter((s) => s.target === 'fidelity')
+
   return (
     <section
-      className="metrics-strip"
+      className="ledger-bar"
       id="metrics-strip"
       aria-label="Key Metrics"
     >
-      <div className="metric-card">
-        <span className="metric-label">{actConfig.kpiLabel}</span>
-        <span className="metric-value">{formatNumber(state.kpis)}</span>
-        <span className={`metric-sub ${kpisPerDay > 0 ? 'positive' : ''}`}>
-          {kpisPerDay > 0 ? `+${formatNumber(kpisPerDay)}/day` : 'manual only'}
-        </span>
+      <div className="ledger-grid">
+        <div className="ledger-cell">
+          <span className="ledger-label">{actConfig.kpiLabel}</span>
+          <span className="ledger-value">{formatNumber(state.kpis)}</span>
+          <span className={`ledger-sub ${kpisPerDay > 0 ? 'positive' : ''}`}>
+            {kpisPerDay > 0 ? `+${formatNumber(kpisPerDay)}/day` : 'manual'}
+          </span>
+          {kpiSparks.map((sp) => (
+            <span key={sp.id} className={`spark-float tone-${sp.tone}`}>
+              {sp.text}
+            </span>
+          ))}
+        </div>
+
+        <div className="ledger-cell">
+          <span className="ledger-label">Spare Time</span>
+          <span className="ledger-value">{state.spareHrs.toFixed(1)}h</span>
+          <span className={`ledger-sub ${freeHrs > 0 ? 'positive' : ''}`}>
+            {freeHrs}/{totalHrs}h free
+            {sparePerDay > freeHrs ? ` · +${sparePerDay.toFixed(1)}/d` : ''}
+          </span>
+        </div>
+
+        <div className="ledger-cell">
+          <span className="ledger-label">Twin Fidelity</span>
+          <span className="ledger-value">{fidelity.toFixed(1)}%</span>
+          <span className="ledger-sub">{actConfig.permissionTier}</span>
+          {fidelitySparks.map((sp) => (
+            <span key={sp.id} className={`spark-float tone-${sp.tone}`}>
+              {sp.text}
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className="metric-card">
-        <span className="metric-label">Spare Time</span>
-        <span className="metric-value">{state.spareHrs.toFixed(1)}h</span>
-        <span className={`metric-sub ${freeHrs > 0 ? 'positive' : ''}`}>
-          {freeHrs}h/{totalHrs}h free
-          {sparePerDay > freeHrs ? ` (+${sparePerDay.toFixed(1)}/d)` : ''}
-        </span>
-      </div>
-
-      <div className="metric-card">
-        <span className="metric-label">Twin Fidelity</span>
-        <span className="metric-value">{fidelity.toFixed(1)}%</span>
-        <span className="metric-sub">{actConfig.permissionTier}</span>
+      {/* Subtle continuous Fidelity progress hairline along ledger bottom */}
+      <div className="ledger-fidelity-rail" aria-hidden="true">
+        <div
+          className="ledger-fidelity-fill"
+          style={{ width: `${Math.min(100, fidelity)}%` }}
+        />
       </div>
     </section>
   )

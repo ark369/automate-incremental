@@ -7,6 +7,7 @@ import {
   getTaskKpiReward,
   getVisibleTasks,
 } from '../engine/selectors'
+import { BoltIcon, TaskIcon } from './Icons'
 
 export function DrawerPanel() {
   const state = useGameStore()
@@ -29,7 +30,7 @@ export function DrawerPanel() {
 
   return (
     <section
-      className="drawer-panel"
+      className="drawer-section"
       id="drawer-panel"
       aria-label="Tools and Digital Twin Roster"
     >
@@ -41,6 +42,7 @@ export function DrawerPanel() {
           className={`drawer-tab ${activeTab === 'upgrades' ? 'active' : ''}`}
           onClick={() => setActiveTab('upgrades')}
         >
+          <BoltIcon size={12} />
           <span>Tools & Macros</span>
           {affordableCount > 0 && (
             <span className="tab-pill">{affordableCount}</span>
@@ -61,7 +63,7 @@ export function DrawerPanel() {
       {activeTab === 'upgrades' && (
         <div className="upgrade-list">
           {availableUpgrades.length === 0 ? (
-            <p className="task-sub" style={{ margin: '2px 0' }}>
+            <p className="drawer-empty">
               All available modules installed. Automate more schedule blocks to
               unlock deeper capabilities.
             </p>
@@ -70,7 +72,10 @@ export function DrawerPanel() {
               const canAfford =
                 state.kpis >= upg.costKpis && state.spareHrs >= upg.costSpareHrs
               return (
-                <div key={upg.id} className="upgrade-row">
+                <div
+                  key={upg.id}
+                  className={`upgrade-row ${canAfford ? 'affordable' : ''}`}
+                >
                   <div className="upgrade-info">
                     <span className="upgrade-name">{upg.name}</span>
                     <span className="upgrade-desc">{upg.description}</span>
@@ -95,7 +100,7 @@ export function DrawerPanel() {
       {activeTab === 'twin' && (
         <div className="upgrade-list">
           {automatedList.length === 0 ? (
-            <p className="task-sub" style={{ margin: '2px 0' }}>
+            <p className="drawer-empty">
               No blocks delegated yet. Perform a task manually to collect
               calibration samples for your Digital Twin.
             </p>
@@ -104,22 +109,23 @@ export function DrawerPanel() {
               const autoReward = getTaskKpiReward(state, task, true)
               return (
                 <div key={task.id} className="automated-summary-item">
-                  <div>
-                    <div className="automated-summary-name">
-                      {task.name} ({task.durationHours}h)
-                    </div>
-                    <div className="automated-summary-note">
-                      {task.automatedNote}
+                  <div className="automated-summary-left">
+                    <span className="automated-icon-wrap">
+                      <TaskIcon taskId={task.id} size={14} />
+                    </span>
+                    <div>
+                      <div className="automated-summary-name">
+                        {task.name}{' '}
+                        <span className="automated-hrs">
+                          ({task.durationHours}h)
+                        </span>
+                      </div>
+                      <div className="automated-summary-note">
+                        {task.automatedNote}
+                      </div>
                     </div>
                   </div>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.68rem',
-                      color: 'var(--accent-auto)',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <span className="automated-payout">
                     +{formatNumber(autoReward)}/d
                   </span>
                 </div>

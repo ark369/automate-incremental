@@ -1,6 +1,7 @@
 import { PROPOSAL_BY_ID } from '../content/proposals'
 import { useGameStore } from '../engine/gameStore'
 import { getActiveProposal, getTwinFidelity } from '../engine/selectors'
+import { CheckIcon, TwinEmblem } from './Icons'
 
 export function EndingStage() {
   const state = useGameStore()
@@ -18,6 +19,7 @@ export function EndingStage() {
     if (state.watchingSilently) {
       return (
         <main className="final-stage" id="silent-watch-stage">
+          <TwinEmblem fidelity={100} act={5} size={76} large />
           <div className="autonomous-log-card">
             <span
               className="final-fidelity"
@@ -51,7 +53,8 @@ export function EndingStage() {
 
     return (
       <main className="final-stage" id="ending-epilogue">
-        <div className="final-card">
+        <div className="final-canvas">
+          <TwinEmblem fidelity={100} act={5} size={86} large />
           <span className="final-fidelity">Continuity · 100.0%</span>
           <h2 className="final-title">You are free.</h2>
           <p className="final-desc">
@@ -81,26 +84,11 @@ export function EndingStage() {
             </div>
           </div>
 
-          <p
-            style={{
-              margin: '2px 0 4px',
-              fontStyle: 'italic',
-              fontFamily: 'var(--font-serif)',
-              fontSize: '0.94rem',
-              color: 'var(--text-secondary)',
-            }}
-          >
+          <p className="epilogue-whisper">
             Your day is running smoothly without you.
           </p>
 
-          <div
-            style={{
-              display: 'flex',
-              gap: '10px',
-              width: '100%',
-              marginTop: '4px',
-            }}
-          >
+          <div className="final-btn-row">
             <button
               type="button"
               id="btn-watch-silently"
@@ -143,7 +131,8 @@ export function EndingStage() {
   return (
     <main className="final-stage" id="act5-final-stage">
       {showCard ? (
-        <div className="final-card">
+        <div className="final-canvas">
+          <TwinEmblem fidelity={fidelity} act={5} size={86} large />
           <span className="final-fidelity">
             Continuity · {fidelity.toFixed(1)}%
           </span>
@@ -156,7 +145,8 @@ export function EndingStage() {
             className="btn-approve full"
             onClick={() => state.approveProposal(finalProposal.id)}
           >
-            {finalProposal.approveLabel}
+            <CheckIcon size={15} />
+            <span>{finalProposal.approveLabel}</span>
           </button>
 
           <button
@@ -168,7 +158,8 @@ export function EndingStage() {
           </button>
         </div>
       ) : (
-        <div className="final-card">
+        <div className="final-canvas">
+          <TwinEmblem fidelity={fidelity} act={5} size={82} large />
           <span className="final-fidelity">
             Continuity · {fidelity.toFixed(1)}%
           </span>

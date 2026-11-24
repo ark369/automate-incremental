@@ -4,8 +4,28 @@ import {
   formatNumber,
   getActiveProposal,
   getTaskKpiReward,
+  getTwinFidelity,
   getVisibleTasks,
 } from '../engine/selectors'
+import { BoltIcon, CheckIcon, TaskIcon, TwinEmblem } from './Icons'
+
+const WORK_TICKET_CODES: Record<string, string> = {
+  inbox: 'VTX-101',
+  tps: 'VTX-102',
+  standup: 'VTX-103',
+  decks: 'VTX-104',
+}
+
+function getInitials(sender: string): string {
+  const parts = sender
+    .replace(/\(.*?\)/g, '')
+    .trim()
+    .split(/\s+/)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }
+  return sender.slice(0, 2).toUpperCase()
+}
 
 export function ActionFeed() {
   const state = useGameStore()
@@ -14,6 +34,7 @@ export function ActionFeed() {
   const manualTasks = visibleTasks.filter((t) => !state.automatedTasks[t.id])
   const kpiUnit = ACTS[state.act].kpiLabel
   const hasBatchApprove = Boolean(state.purchasedUpgrades['batch_approve'])
+  const fidelity = getTwinFidelity(state)
 
   // In Act 5 or once human is removed, EndingStage owns the center canvas
   if (state.act === 5 || state.humanRemoved) {
@@ -22,7 +43,7 @@ export function ActionFeed() {
 
   return (
     <main className="feed-column" id="action-feed">
-      {/* Act / Snooze Banner */}
+      {/* Act / Snooze Notice Strip */}
       {state.toast && (
         <div
           className={`act-toast ${state.toast.kind}`}
@@ -44,12 +65,15 @@ export function ActionFeed() {
         </div>
       )}
 
-      {/* Corporate / Wellness Pings (disappears once silenced in Act 4) */}
+      {/* Slack-style Corporate / Wellness Pings (disappears once silenced in Act 4) */}
       {!state.uiFlags.pingsHidden && state.activePings.length > 0 && (
         <section className="pings-stack" aria-label="Incoming Pings">
           {state.activePings.map((ping) => (
-            <div key={ping.id} className={`ping-row ${ping.tone}`}>
-              <div>
+            <div key={ping.id} className={`ping-chip ${ping.tone}`}>
+              <span className={`ping-avatar ${ping.tone}`} aria-hidden="true">
+                {getInitials(ping.sender)}
+              </span>
+              <div className="ping-body">
                 <div className="ping-meta">
                   <span className="ping-sender">{ping.sender}</span>
                   <span className="ping-channel">{ping.channel}</span>
@@ -69,17 +93,24 @@ export function ActionFeed() {
         </section>
       )}
 
-      {/* THE APPROVAL TRAP: Cadence Permission Proposal */}
+      {/* THE APPROVAL TRAP: Elevated Cadence Permission Sheet */}
       {activeProposal && (
         <section
-          className="proposal-card"
+          className="proposal-sheet"
           id={`proposal-${activeProposal.id}`}
           aria-label="Cadence Proposal"
         >
-          <span className="proposal-eyebrow">{activeProposal.eyebrow}</span>
-          <h2 className="proposal-title">{activeProposal.title}</h2>
+          <div className="proposal-head">
+            <TwinEmblem fidelity={fidelity} act={state.act} size={28} />
+            <div className="proposal-head-text">
+              <span className="proposal-eyebrow">{activeProposal.eyebrow}</span>
+              <h2 className="proposal-title">{activeProposal.title}</h2>
+            </div>
+          </div>
+
           <p className="proposal-desc">{activeProposal.description}</p>
           <div className="proposal-scope">{activeProposal.permissionScope}</div>
+
           <div className="proposal-actions">
             <button
               type="button"
@@ -88,7 +119,8 @@ export function ActionFeed() {
               style={{ flex: 1 }}
               onClick={() => state.approveProposal(activeProposal.id)}
             >
-              {activeProposal.approveLabel}
+              <CheckIcon size={14} />
+              <span>{activeProposal.approveLabel}</span>
             </button>
             <button
               type="button"
@@ -101,40 +133,43 @@ export function ActionFeed() {
         </section>
       )}
 
-      {/* Twin Draft Approval Queue */}
+      {/* Twin Draft Approval Queue (Distinct emerald clearance strips) */}
       {state.pendingDrafts.length > 0 && (
         <section aria-label="Twin Draft Approvals">
           <div className="section-header">
             <h2 className="section-title">
-              Twin Drafts ({state.pendingDrafts.length})
+              Ready for Approval ({state.pendingDrafts.length})
             </h2>
             {hasBatchApprove && state.pendingDrafts.length > 1 && (
               <button
                 type="button"
                 id="btn-approve-all-drafts"
-                className="btn-approve"
-                style={{ minHeight: '28px', padding: '4px 10px', fontSize: '0.72rem' }}
+                className="btn-approve compact"
                 onClick={state.approveAllDrafts}
               >
-                Approve All ({state.pendingDrafts.length})
+                <CheckIcon size={12} />
+                <span>Approve All ({state.pendingDrafts.length})</span>
               </button>
             )}
           </div>
           <div className="feed-column">
             {state.pendingDrafts.map((draft) => (
-              <div key={draft.id} className="draft-card">
+              <div key={draft.id} className="draft-strip">
+                <div className="draft-icon-wrap">
+                  <TaskIcon taskId={draft.taskId} size={15} />
+                </div>
                 <div className="draft-info">
-                  <span className="draft-tag">Ready for approval</span>
                   <span className="draft-title">{draft.title}</span>
                   <span className="draft-detail">{draft.detail}</span>
                 </div>
                 <button
                   type="button"
-                  className="btn-approve"
+                  className="btn-approve draft-btn"
                   onClick={() => state.approveDraft(draft.id)}
                 >
-                  Approve
-                  <span className="btn-cost-line">
+                  <CheckIcon size={13} />
+                  <span>Approve</span>
+                  <span className="btn-reward-pill">
                     +{formatNumber(draft.kpiReward)}
                   </span>
                 </button>
@@ -144,14 +179,14 @@ export function ActionFeed() {
         </section>
       )}
 
-      {/* DEMONSTRATE-TO-AUTOMATE: Manual Tasks Queue */}
+      {/* DEMONSTRATE-TO-AUTOMATE: Recessed Work Tickets / Personal Routines */}
       {manualTasks.length > 0 && (
         <section aria-label="Manual Schedule Blocks">
           <div className="section-header">
             <h2 className="section-title">
               {state.calendarMode === '24h'
-                ? 'Unoptimized Blocks — Demonstrate to Calibrate'
-                : 'Manual Work — Demonstrate to Calibrate Twin'}
+                ? 'Unoptimized Blocks · Calibrate Twin'
+                : 'Manual Queue · Demonstrate to Calibrate'}
             </h2>
           </div>
 
@@ -166,27 +201,46 @@ export function ActionFeed() {
                 isCalibrated &&
                 state.kpis >= task.automateCostKpis &&
                 state.spareHrs >= task.automateCostSpareHrs
+              const ticketCode = WORK_TICKET_CODES[task.id]
+              const taskSparks = state.sparks.filter(
+                (sp) => sp.target === 'task' && sp.taskId === task.id,
+              )
 
               return (
                 <article
                   key={task.id}
                   id={`task-${task.id}`}
-                  className={`task-card ${
+                  className={`task-ticket ${task.domain} ${
                     isCalibrated ? 'ready-to-automate' : ''
                   }`}
                 >
+                  {taskSparks.map((sp) => (
+                    <span
+                      key={sp.id}
+                      className={`spark-float task-spark tone-${sp.tone}`}
+                    >
+                      {sp.text}
+                    </span>
+                  ))}
+
                   <div className="task-top">
-                    <div>
+                    <div className={`task-icon-badge ${task.domain}`}>
+                      <TaskIcon taskId={task.id} size={15} />
+                    </div>
+                    <div className="task-head-body">
                       <div className="task-title-row">
                         <span className="task-name">{task.name}</span>
-                        <span className="task-hours">{task.durationHours}h/day</span>
+                        {ticketCode && state.act <= 2 && (
+                          <span className="ticket-code">{ticketCode}</span>
+                        )}
+                        <span className="task-hours">{task.durationHours}h</span>
                         {task.unoptimizedScore && (
                           <span className="task-score-chip">
                             {task.unoptimizedScore}
                           </span>
                         )}
                       </div>
-                      <p className="task-sub" style={{ margin: '2px 0 0' }}>
+                      <p className="task-sub">
                         {samples > 0 && !isCalibrated
                           ? task.calibrationNote
                           : task.manualSubtitle}
@@ -194,26 +248,29 @@ export function ActionFeed() {
                     </div>
                   </div>
 
-                  <div className="task-sample-row">
-                    <span>
-                      {isCalibrated
-                        ? `Digital Twin calibrated (+${task.fidelityContribution}% Fidelity)`
-                        : `Twin calibration: ${samples}/${task.samplesRequired} samples`}
-                    </span>
-                    <span
-                      className="sample-dots"
+                  {/* Segmented Twin Calibration Bar */}
+                  <div className="calibration-row">
+                    <div
+                      className="calibration-segments"
                       aria-label={`${samples} of ${task.samplesRequired} calibration samples`}
                     >
                       {Array.from({ length: task.samplesRequired }).map(
                         (_, i) => (
                           <span
                             key={i}
-                            className={`sample-dot ${
+                            className={`cal-seg ${
                               i < samples ? 'filled' : ''
-                            }`}
+                            } ${isCalibrated ? 'locked' : ''}`}
                           />
                         ),
                       )}
+                    </div>
+                    <span
+                      className={`cal-label ${isCalibrated ? 'locked' : ''}`}
+                    >
+                      {isCalibrated
+                        ? `Calibrated (+${task.fidelityContribution}%)`
+                        : `${samples}/${task.samplesRequired} samples`}
                     </span>
                   </div>
 
@@ -241,13 +298,7 @@ export function ActionFeed() {
                               ? 'Do Manually'
                               : 'Do Yourself'}
                         </span>
-                        <span
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: '0.7rem',
-                            color: 'var(--text-secondary)',
-                          }}
-                        >
+                        <span className="btn-do-payout">
                           +{formatNumber(manualPayout)} {kpiUnit}
                         </span>
                       </span>
@@ -261,7 +312,10 @@ export function ActionFeed() {
                         disabled={!canAfford}
                         onClick={() => state.automateTask(task.id)}
                       >
-                        <span>Automate</span>
+                        <span className="btn-automate-top">
+                          <BoltIcon size={12} />
+                          <span>Automate</span>
+                        </span>
                         <span className="btn-cost-line">
                           {formatNumber(task.automateCostKpis)} {kpiUnit}
                           {task.automateCostSpareHrs > 0
